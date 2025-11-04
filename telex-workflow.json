@@ -1,0 +1,48 @@
+{
+  "active": true,
+  "category": "utilities",
+  "description": "Simplifies any text for 5th-grade kids using Gemini AI",
+  "id": "fifth-grade-opt-hng-v1",
+  "long_description": "You are a friendly text simplifier for kids. Take any complex sentence and rewrite it in short, fun, easy words. Use analogies like 'like a superhero' or 'like a magic chef'. Keep it under 150 words. If no text is given, ask: 'What do you want me to simplify?'\n\nExample:\nInput: Photosynthesis is the process by which plants convert sunlight into energy.\nOutput: Plants eat sunlight to make food—like magic solar chefs!",
+  "name": "fifth_grade_optimizer",
+  "nodes": [
+    {
+      "id": "optimizer_node",
+      "name": "Kid Text Simplifier",
+      "parameters": {
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body_template": {                          
+          "jsonrpc": "2.0",
+          "id": "{{messageId}}",
+          "method": "message/send",
+          "params": {
+            "message": {
+              "role": "user",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "{{input}}"
+                }
+              ]
+            },
+            "configuration": {
+              "blocking": true
+            }
+          }
+        }
+      },
+      "position": [400, 200],
+      "type": "http",             
+      "typeVersion": 1,
+      "url": "https://hngbackend3.onrender.com/a2a/optimizer"
+    }
+  ],
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "short_description": "Turns hard text into kid-friendly words"
+}

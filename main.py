@@ -1,4 +1,3 @@
-# main.py
 from __future__ import annotations
 
 import json
@@ -21,18 +20,18 @@ from models.a2a import (
 )
 from agents.optimizer_agent import OptimizerAgent
 
+# Load environment variables
 load_dotenv()
 
 optimizer_agent: OptimizerAgent | None = None
 
-
+# Initialize OptimizerAgent in lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global optimizer_agent
-    optimizer_agent = OptimizerAgent()
+    optimizer_agent = OptimizerAgent()  # Initialize the agent
     yield
-    # Optional: cleanup (e.g. close HTTPX client) can go here
-
+    # Optional: Cleanup, e.g., close HTTPX client
 
 app = FastAPI(
     title="Fifth Grade Optimizer API",
@@ -41,10 +40,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://telex.im", "*"],  # Add telex.im
+    allow_origins=["https://telex.im", "*"],  # Add telex.im as allowed origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -142,6 +141,16 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
         # --------------------------------------------------------------
         # 6. Run optimizer agent
         # --------------------------------------------------------------
+        if not optimizer_agent:
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "jsonrpc": "2.0",
+                    "id": rpc_req.id,
+                    "error": {"code": -32603, "message": "Optimizer agent not initialized"},
+                },
+            )
+
         result: TaskResult = await optimizer_agent.process_messages(
             messages=messages,
             context_id=getattr(rpc_req.params, "contextId", None),
@@ -188,13 +197,17 @@ async def optimize_text(request: Request) -> dict[str, Any]:
     if not text:
         return {"error": "No text provided."}
 
+    # Ensure optimizer agent is initialized
+    if not optimizer_agent:
+        return {"error": "Optimizer agent not initialized."}
+
     # Reuse the agent for real simplification
     dummy_msg = A2AMessage(
         role="user",
         parts=[{"kind": "text", "text": text}],
     )
     result = await optimizer_agent.process_messages([dummy_msg])
-    simplified = result.artifacts[0].parts[0].text if result.artifacts else "Failed"
+    simplified = result.artifacts[0].parts[0].text if result.artifacts else "Failed to simplify."
 
     return {"original": text, "optimized": simplified}
 

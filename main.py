@@ -25,13 +25,14 @@ load_dotenv()
 
 optimizer_agent: OptimizerAgent | None = None
 
-# Initialize OptimizerAgent in lifespan
+# --- Initialize OptimizerAgent in lifespan ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global optimizer_agent
-    optimizer_agent = OptimizerAgent()  # Initialize the agent
+    optimizer_agent = OptimizerAgent()
     yield
-    # Optional: Cleanup, e.g., close HTTPX client
+    # Optional cleanup
+
 
 app = FastAPI(
     title="Fifth Grade Optimizer API",
@@ -43,19 +44,19 @@ app = FastAPI(
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://telex.im", "*"],  # Add telex.im as allowed origin
+    allow_origins=["https://telex.im", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+# -----------------------------
+# JSON-RPC endpoint
+# -----------------------------
 @app.post("/a2a/optimizer")
 async def a2a_optimizer(request: Request) -> JSONResponse:
-    """JSON-RPC 2.0 endpoint – now bulletproof against bad payloads."""
     try:
-        # --------------------------------------------------------------
-        # 1. Validate Content-Type
-        # --------------------------------------------------------------
         content_type = request.headers.get("content-type", "")
         if not content_type.startswith("application/json"):
             return JSONResponse(
@@ -63,16 +64,10 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
                 content={
                     "jsonrpc": "2.0",
                     "id": None,
-                    "error": {
-                        "code": -32600,
-                        "message": "Content-Type must be application/json",
-                    },
+                    "error": {"code": -32600, "message": "Content-Type must be application/json"},
                 },
             )
 
-        # --------------------------------------------------------------
-        # 2. Read raw body (prevents JSONDecodeError on empty body)
-        # --------------------------------------------------------------
         body_bytes = await request.body()
         if not body_bytes:
             return JSONResponse(
@@ -84,13 +79,9 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
                 },
             )
 
-        # --------------------------------------------------------------
-        # 3. Parse JSON safely
-        # --------------------------------------------------------------
         try:
             body: dict[str, Any] = json.loads(body_bytes)
-        except json.JSONDecodeError as e:
-            print(f"JSON Parse Error: {e}")
+        except json.JSONDecodeError:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={
@@ -100,9 +91,6 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
                 },
             )
 
-        # --------------------------------------------------------------
-        # 4. Basic JSON-RPC validation
-        # --------------------------------------------------------------
         if body.get("jsonrpc") != "2.0" or "id" not in body:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -115,19 +103,14 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
 
         rpc_req = JSONRPCRequest(**body)
 
-        # --------------------------------------------------------------
-        # 5. Extract messages based on method
-        # --------------------------------------------------------------
         if rpc_req.method == "message/send":
             if not isinstance(rpc_req.params, MessageParams):
                 raise ValueError("Invalid params for method 'message/send'")
             messages: list[A2AMessage] = [rpc_req.params.message]
-
         elif rpc_req.method == "execute":
             if not isinstance(rpc_req.params, ExecuteParams):
                 raise ValueError("Invalid params for method 'execute'")
             messages = rpc_req.params.messages
-
         else:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -138,9 +121,6 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
                 },
             )
 
-        # --------------------------------------------------------------
-        # 6. Run optimizer agent
-        # --------------------------------------------------------------
         if not optimizer_agent:
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -163,7 +143,7 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
             content=JSONRPCResponse(id=rpc_req.id, result=result).model_dump(),
         )
 
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         print("FULL TRACEBACK:\n", traceback.format_exc())
         err_id = body.get("id") if "body" in locals() and isinstance(body, dict) else None
         return JSONResponse(
@@ -171,23 +151,16 @@ async def a2a_optimizer(request: Request) -> JSONResponse:
             content={
                 "jsonrpc": "2.0",
                 "id": err_id,
-                "error": {
-                    "code": -32603,
-                    "message": "Internal error",
-                    "data": {"details": str(exc)},
-                },
+                "error": {"code": -32603, "message": "Internal error", "data": {"details": str(exc)}},
             },
         )
 
 
-@app.get("/")
-async def health() -> dict[str, str]:
-    return {"status": "healthy", "agent": "fifth_grade_optimizer"}
-
-
+# -----------------------------
+# Simple optimizer endpoint
+# -----------------------------
 @app.post("/optimize")
 async def optimize_text(request: Request) -> dict[str, Any]:
-    """Simple demo endpoint – uses the real agent now."""
     try:
         data = await request.json()
     except Exception:
@@ -197,23 +170,76 @@ async def optimize_text(request: Request) -> dict[str, Any]:
     if not text:
         return {"error": "No text provided."}
 
-    # Ensure optimizer agent is initialized
     if not optimizer_agent:
         return {"error": "Optimizer agent not initialized."}
 
-    # Reuse the agent for real simplification
-    dummy_msg = A2AMessage(
-        role="user",
-        parts=[{"kind": "text", "text": text}],
-    )
+    dummy_msg = A2AMessage(role="user", parts=[{"kind": "text", "text": text}])
     result = await optimizer_agent.process_messages([dummy_msg])
     simplified = result.artifacts[0].parts[0].text if result.artifacts else "Failed to simplify."
 
     return {"original": text, "optimized": simplified}
 
 
+# -----------------------------
+# Health check
+# -----------------------------
+@app.get("/")
+async def health() -> dict[str, str]:
+    return {"status": "healthy", "agent": "fifth_grade_optimizer"}
+
+
+# -----------------------------
+# Manifest JSON endpoint
+# -----------------------------
+@app.get("/a2a/manifest")
+async def get_manifest() -> dict[str, Any]:
+    """Returns the workflow/manifest JSON for Telex-style integrations."""
+    return {
+        "active": True,
+        "category": "utilities",
+        "description": "Simplifies any text for 5th-grade kids using Gemini AI",
+        "id": "fifth-grade-opt-hng-v1",
+        "long_description": (
+            "You are a friendly text simplifier for kids. Take any complex sentence and rewrite it "
+            "in short, fun, easy words. Use analogies like 'like a superhero' or 'like a magic chef'. "
+            "Keep it under 150 words. If no text is given, ask: 'What do you want me to simplify?'\n\n"
+            "Example:\nInput: Photosynthesis is the process by which plants convert sunlight into energy.\n"
+            "Output: Plants eat sunlight to make food—like magic solar chefs!"
+        ),
+        "name": "fifth_grade_optimizer",
+        "nodes": [
+            {
+                "id": "optimizer_node",
+                "name": "Kid Text Simplifier",
+                "parameters": {
+                    "method": "POST",
+                    "headers": {"Content-Type": "application/json"},
+                    "body_template": {
+                        "jsonrpc": "2.0",
+                        "id": "{{messageId}}",
+                        "method": "message/send",
+                        "params": {
+                            "message": {
+                                "role": "user",
+                                "parts": [{"kind": "text", "text": "{{input}}"}]
+                            },
+                            "configuration": {"blocking": True}
+                        }
+                    }
+                },
+                "position": [400, 200],
+                "type": "http",
+                "typeVersion": 1,
+                "url": "https://hngbackend3.onrender.com/a2a/optimizer"
+            }
+        ],
+        "pinData": {},
+        "settings": {"executionOrder": "v1"},
+        "short_description": "Turns hard text into kid-friendly words"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
-
     port = int(os.getenv("PORT", 5001))
     uvicorn.run(app, host="127.0.0.1", port=port)

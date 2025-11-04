@@ -14,7 +14,7 @@
         "headers": {
           "Content-Type": "application/json"
         },
-        "body_template": {                          
+        "body_template": {
           "jsonrpc": "2.0",
           "id": "{{messageId}}",
           "method": "message/send",
@@ -35,7 +35,7 @@
         }
       },
       "position": [400, 200],
-      "type": "http",             
+      "type": "http",
       "typeVersion": 1,
       "url": "https://hngbackend3.onrender.com/a2a/optimizer"
     }

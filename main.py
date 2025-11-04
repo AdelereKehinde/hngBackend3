@@ -57,7 +57,7 @@ app.add_middleware(
 
 
 
-@app.get("/kaithheathcheck")
+@app.get("/")
 def health_check():
     return {"status": "ok"}
 

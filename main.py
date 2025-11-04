@@ -54,6 +54,13 @@ app.add_middleware(
 # -----------------------------
 # JSON-RPC endpoint
 # -----------------------------
+
+
+
+@app.get("/kaithheathcheck")
+def health_check():
+    return {"status": "ok"}
+
 @app.post("/a2a/optimizer")
 async def a2a_optimizer(request: Request) -> JSONResponse:
     try:
@@ -241,5 +248,8 @@ async def get_manifest() -> dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 5001))
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
+    import os
+
+    port = int(os.getenv("PORT", 8000)) 
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
+
